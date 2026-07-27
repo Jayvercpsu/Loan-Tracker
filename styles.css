@@ -122,6 +122,9 @@ input {
 
 /* ── Selection Bar ── */
 .selection-bar {
+  position: sticky;
+  top: 70px;
+  z-index: 48;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1143,6 +1146,10 @@ input {
 
   .view-tabs {
     display: none;
+  }
+
+  .selection-bar {
+    top: 55px;
   }
 
   .loan-grid {
