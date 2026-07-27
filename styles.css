@@ -464,13 +464,6 @@ input {
   font-weight: 700;
 }
 
-.loan-header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
 .loan-total {
   font-size: 18px;
   font-weight: 800;
@@ -677,7 +670,7 @@ input {
   background: rgba(239,68,68,0.14);
 }
 
-.minus-move-icon {
+.pay-move-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -686,16 +679,21 @@ input {
   border-radius: 50%;
   background: rgba(34,197,94,0.15);
   color: var(--green);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: 0.2s ease;
+  flex-shrink: 0;
   line-height: 1;
 }
 
-.minus-move-icon:hover {
+.pay-move-icon:hover {
   background: rgba(34,197,94,0.25);
   transform: scale(1.15);
+}
+
+.pay-move-icon.hidden {
+  display: none !important;
 }
 
 .restore-btn {

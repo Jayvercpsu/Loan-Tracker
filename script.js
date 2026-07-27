@@ -270,10 +270,10 @@ function renderPaidHistory() {
     card.innerHTML = `
       <div class="history-card-top">
         <div class="history-provider">${escapeHTML(record.provider)}</div>
-        <span class="history-status completed">✓ Completed</span>
+        <span class="history-status completed">✓ Paid</span>
       </div>
-      <div class="history-total">${formatCurrency(record.originalTotal)}</div>
-      <div class="history-date">Completed: ${formatDateTime(record.actionDate)}</div>
+      <div class="history-total">${formatCurrency(record.amount)}</div>
+      <div class="history-date">${formatDate(record.date)} — ${formatDateTime(record.actionDate)}</div>
       <div class="history-actions">
         <button class="restore-btn" data-action="restore-from-paid" data-history-id="${record.id}">Restore</button>
         <button class="remove-btn" data-action="delete-from-paid" data-history-id="${record.id}">× Delete</button>
@@ -429,12 +429,12 @@ function addPaymentToExpense(expenseId, date, amount) {
       <div class="payment-date">${formatDate(date)}</div>
     </div>
     <div class="payment-amount">${formatCurrency(amount)}</div>
+    <span class="pay-move-icon hidden">−</span>
   `;
   container.appendChild(div);
   totalEl.textContent = formatCurrency(getExpenseTotal(expense));
-  const anyPaid = expense.payments.some(p => p.paid);
-  const minus = card.querySelector(".minus-move-icon");
-  if (minus) minus.classList.toggle("hidden", !anyPaid);
+  updateOverallTotal();
+  showToast("Payment added");
   updateOverallTotal();
   showToast("Payment added");
 }
@@ -445,23 +445,27 @@ function updateCompleteStatus(expense) {
   const card = btn.closest(".loan-card");
   if (!card) return;
   const completed = expense.payments.length > 0 && expense.payments.every(p => p.paid);
-  const anyPaid = expense.payments.some(p => p.paid);
   card.classList.toggle("completed", completed);
-  const minus = card.querySelector(".minus-move-icon");
-  if (minus) minus.classList.toggle("hidden", !anyPaid);
 }
 
-function moveToPaidHistory(expenseId) {
-  const idx = state.expenses.findIndex(e => e.id === expenseId);
-  if (idx === -1) return;
-  const expense = state.expenses[idx];
+function movePaymentToPaidHistory(expenseId, paymentId) {
+  const expense = state.expenses.find(e => e.id === expenseId);
+  if (!expense) return;
+  const pidx = expense.payments.findIndex(p => p.id === paymentId);
+  if (pidx === -1) return;
+  const payment = expense.payments[pidx];
   state.paidHistory.push({
     id: crypto.randomUUID(),
     provider: expense.provider,
-    originalTotal: getExpenseTotal(expense),
+    amount: payment.amount,
+    date: payment.date,
     actionDate: new Date().toISOString()
   });
-  state.expenses.splice(idx, 1);
+  expense.payments.splice(pidx, 1);
+  if (expense.payments.length === 0) {
+    const eidx = state.expenses.findIndex(e => e.id === expenseId);
+    if (eidx > -1) state.expenses.splice(eidx, 1);
+  }
   saveData();
   renderAll();
   showToast("Moved to Paid History");
@@ -471,26 +475,19 @@ function restoreFromPaid(historyId) {
   const idx = state.paidHistory.findIndex(r => r.id === historyId);
   if (idx === -1) return;
   const record = state.paidHistory[idx];
-  const provider = record.provider;
-  const existing = state.expenses.find(e => e.provider.toLowerCase() === provider.toLowerCase());
-  if (existing) {
-    showToast("Loan already exists in Active", "!");
-    return;
+  let expense = state.expenses.find(e => e.provider.toLowerCase() === record.provider.toLowerCase());
+  if (!expense) {
+    expense = { id: crypto.randomUUID(), provider: record.provider, payments: [] };
+    state.expenses.push(expense);
   }
-  const newExpense = {
+  expense.payments.push({
     id: crypto.randomUUID(),
-    provider: provider,
-    payments: []
-  };
-  const amountPerPayment = record.originalTotal;
-  newExpense.payments.push({
-    id: crypto.randomUUID(),
-    date: new Date().toISOString().split("T")[0],
-    amount: amountPerPayment,
+    date: record.date,
+    amount: record.amount,
     paid: false
   });
+  expense.payments.sort((a, b) => new Date(a.date) - new Date(b.date));
   state.paidHistory.splice(idx, 1);
-  state.expenses.push(newExpense);
   saveData();
   renderAll();
   switchView("active");
@@ -649,13 +646,17 @@ function bindEvents() {
     }
   });
 
-  /* Payment selection / minus move icon */
+  /* Payment selection / pay move icon */
   $("#loanContainer").addEventListener("click", event => {
-    const minus = event.target.closest(".minus-move-icon");
-    if (minus) {
-      const expenseId = minus.dataset.expenseId;
+    const icon = event.target.closest(".pay-move-icon");
+    if (icon) {
+      const item = icon.closest(".payment-item");
+      if (!item) return;
+      const expenseId = item.dataset.expenseId;
+      const paymentId = item.dataset.paymentId;
       const expense = state.expenses.find(e => e.id === expenseId);
-      openConfirmModal("Move to Paid History?", `${expense.provider} is fully paid. Move to Paid History?`, () => moveToPaidHistory(expenseId));
+      const payment = expense?.payments.find(p => p.id === paymentId);
+      openConfirmModal("Move to Paid History?", `${formatCurrency(payment?.amount)} payment for ${expense?.provider} will be moved to Paid History.`, () => movePaymentToPaidHistory(expenseId, paymentId));
       return;
     }
     const item = event.target.closest(".payment-item");
