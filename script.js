@@ -220,6 +220,7 @@ function createLoanCard(expense, index) {
             <div class="payment-date${dateClass}">${formatDate(p.date)}</div>
           </div>
           <div class="payment-amount">${formatCurrency(p.amount)}</div>
+          <span class="pay-move-icon${p.paid ? '' : ' hidden'}">−</span>
         </div>
       `;
     }).join("");
@@ -227,10 +228,7 @@ function createLoanCard(expense, index) {
   card.innerHTML = `
     <div class="loan-header">
       <div class="loan-name">${escapeHTML(expense.provider)}</div>
-      <div class="loan-header-right">
-        <div class="loan-total">${formatCurrency(total)}</div>
-        <span class="minus-move-icon${completed ? '' : ' hidden'}" data-expense-id="${expense.id}">−</span>
-      </div>
+      <div class="loan-total">${formatCurrency(total)}</div>
     </div>
     <div class="loan-payments">${paymentsHTML}</div>
     <div class="loan-actions">
@@ -396,6 +394,8 @@ function togglePayment(expenseId, paymentId) {
     item.querySelector(".payment-date").classList.toggle("paid");
     const cb = item.querySelector("input[type='checkbox']");
     if (cb) cb.checked = payment.paid;
+    const icon = item.querySelector(".pay-move-icon");
+    if (icon) icon.classList.toggle("hidden", !payment.paid);
   }
   updateCompleteStatus(expense);
   saveData();
@@ -432,8 +432,9 @@ function addPaymentToExpense(expenseId, date, amount) {
   `;
   container.appendChild(div);
   totalEl.textContent = formatCurrency(getExpenseTotal(expense));
+  const anyPaid = expense.payments.some(p => p.paid);
   const minus = card.querySelector(".minus-move-icon");
-  if (minus) minus.classList.toggle("hidden", !isExpenseCompleted(expense));
+  if (minus) minus.classList.toggle("hidden", !anyPaid);
   updateOverallTotal();
   showToast("Payment added");
 }
@@ -444,9 +445,10 @@ function updateCompleteStatus(expense) {
   const card = btn.closest(".loan-card");
   if (!card) return;
   const completed = expense.payments.length > 0 && expense.payments.every(p => p.paid);
+  const anyPaid = expense.payments.some(p => p.paid);
   card.classList.toggle("completed", completed);
   const minus = card.querySelector(".minus-move-icon");
-  if (minus) minus.classList.toggle("hidden", !completed);
+  if (minus) minus.classList.toggle("hidden", !anyPaid);
 }
 
 function moveToPaidHistory(expenseId) {
