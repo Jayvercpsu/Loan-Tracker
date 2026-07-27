@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loan Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Sidebar Drawer (mobile) -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+  <aside class="sidebar-drawer" id="sidebarDrawer">
+    <div class="drawer-header">
+      <strong class="drawer-title">Loan Tracker</strong>
+      <button class="drawer-close" id="sidebarClose">×</button>
+    </div>
+    <nav class="drawer-nav">
+      <button class="drawer-item active" data-view="active"><span class="drawer-icon">◈</span>Active Loans</button>
+      <button class="drawer-item" data-view="paid"><span class="drawer-icon">✓</span>Paid History</button>
+      <button class="drawer-item" data-view="delete"><span class="drawer-icon">✕</span>Delete History</button>
+    </nav>
+    <div class="drawer-footer">
+      <button class="drawer-item" id="sidebarThemeToggle">
+        <span class="drawer-icon" id="sidebarThemeIcon">☀</span>
+        <span id="sidebarThemeText">Light Mode</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="app">
+
+    <!-- Top Bar -->
+    <header class="topbar">
+      <button class="mobile-menu" id="mobileMenu" aria-label="Menu">☰</button>
+      <div class="topbar-left">
+        <h1 class="app-title">Loan Tracker</h1>
+        <div class="topbar-meta">
+          <span class="overall-total" id="overallTotal">Total: ₱0.00</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="theme-btn" id="themeToggle" aria-label="Toggle theme">☀</button>
+        <button class="btn btn-primary" id="addLoanBtn">+ Add Loan</button>
+      </div>
+    </header>
+
+    <!-- View Tabs -->
+    <nav class="view-tabs" id="viewTabs">
+      <button class="tab active" data-view="active">Active Loans</button>
+      <button class="tab" data-view="paid">Paid History</button>
+      <button class="tab" data-view="delete">Delete History</button>
+    </nav>
+
+    <!-- Active View -->
+    <section class="view active-view" id="activeView">
+      <div class="selection-bar hidden" id="selectionBar">
+        <div class="selection-bar-left">
+          <span class="sel-text">Selected:</span>
+          <strong class="sel-amount" id="selAmount">₱0.00</strong>
+          <span class="sel-count" id="selCount">(0)</span>
+        </div>
+        <button class="sel-clear-btn" id="clearSelectionBtn">✕</button>
+      </div>
+      <div class="loan-grid" id="loanContainer"></div>
+      <div class="empty-state hidden" id="loanEmpty">
+        <div class="empty-icon">₱</div>
+        <h3>No active loans</h3>
+        <p>Add a loan to start tracking.</p>
+      </div>
+    </section>
+
+    <!-- Paid History View -->
+    <section class="view" id="paidView">
+      <div class="history-top">
+        <div>
+          <h2>Paid History</h2>
+          <p>Completed loans — restore anytime back to Active</p>
+        </div>
+      </div>
+      <div class="history-grid" id="paidContainer"></div>
+      <div class="empty-state hidden" id="paidEmpty">
+        <div class="empty-icon">✓</div>
+        <h3>No paid history yet</h3>
+        <p>Completed loans will appear here.</p>
+      </div>
+    </section>
+
+    <!-- Delete History View -->
+    <section class="view" id="deleteView">
+      <div class="history-top">
+        <div>
+          <h2>Delete History</h2>
+          <p>Removed loans — permanently deletable</p>
+        </div>
+        <button class="btn btn-danger" id="clearHistoryBtn">Clear All</button>
+      </div>
+      <div class="history-grid" id="deleteContainer"></div>
+      <div class="empty-state hidden" id="deleteEmpty">
+        <div class="empty-icon">↺</div>
+        <h3>No delete history yet</h3>
+        <p>Removed loans will appear here.</p>
+      </div>
+    </section>
+
+    <!-- Add Loan View -->
+    <section class="view" id="addView">
+      <div class="add-header">
+        <button class="btn btn-ghost" id="cancelAddBtn">← Back</button>
+        <h2>Add New Loan</h2>
+      </div>
+      <div class="add-form">
+        <div class="form-group">
+          <label class="form-label">Provider Name</label>
+          <input type="text" class="form-input" id="formProvider" placeholder="e.g. Billease, Atome, GCash...">
+        </div>
+        <div class="form-section-title"><span>Payments</span></div>
+        <div id="formPayments"></div>
+        <button class="btn btn-secondary full-width" id="addPaymentRowBtn">+ Add Payment</button>
+        <div class="add-actions">
+          <button class="btn btn-secondary" id="cancelAddBtn2">Cancel</button>
+          <button class="btn btn-primary" id="saveLoanBtn">Save Loan</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Confirm Modal -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal modal-sm">
+      <button class="modal-close" data-close-modal>×</button>
+      <div class="confirm-icon">!</div>
+      <h3 id="confirmTitle">Confirm?</h3>
+      <p id="confirmMessage">Are you sure?</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" data-close-modal>Cancel</button>
+        <button class="btn btn-danger" id="confirmActionBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast">
+    <span id="toastIcon">✓</span>
+    <span id="toastMessage">Saved successfully</span>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
