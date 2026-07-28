@@ -121,7 +121,9 @@ function updateThemeIcons(isLight) {
 }
 
 function formatCurrency(amount) {
-  return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(amount);
+  const num = Number(amount);
+  if (isNaN(num)) return "₱0.00";
+  return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(num);
 }
 
 function formatDate(dateString) {
@@ -517,7 +519,7 @@ function moveToDeleteFromPaid(historyId) {
   state.deleteHistory.push({
     id: crypto.randomUUID(),
     provider: record.provider,
-    originalTotal: record.originalTotal,
+    originalTotal: record.amount,
     actionDate: new Date().toISOString()
   });
   state.paidHistory.splice(idx, 1);
