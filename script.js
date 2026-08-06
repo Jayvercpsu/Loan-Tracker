@@ -46,6 +46,13 @@ let state = {
 };
 
 let pendingAction = null;
+let editContext = null;
+let deleteContext = null;
+
+const ICONS = {
+  edit: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>',
+  trash: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>'
+};
 
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
@@ -209,23 +216,8 @@ function createLoanCard(expense, index) {
 
   const paymentsHTML = [...expense.payments]
     .sort((a, b) => new Date(a.date) - new Date(b.date))
-    .map(p => {
-      const paidClass = p.paid ? " paid" : "";
-      const dateClass = p.paid ? " paid" : "";
-      const selClass = isSelected(p.id) ? " selected" : "";
-      return `
-        <div class="payment-item${paidClass}${selClass}" data-expense-id="${expense.id}" data-payment-id="${p.id}">
-          <label class="payment-checkbox">
-            <input type="checkbox"${p.paid ? " checked" : ""} data-action="toggle-payment" data-expense-id="${expense.id}" data-payment-id="${p.id}">
-          </label>
-          <div class="payment-info">
-            <div class="payment-date${dateClass}">${formatDate(p.date)}</div>
-          </div>
-          <div class="payment-amount">${formatCurrency(p.amount)}</div>
-          <span class="pay-move-icon${p.paid ? '' : ' hidden'}">−</span>
-        </div>
-      `;
-    }).join("");
+    .map(p => createLoanItem(expense, p, isSelected(p.id)))
+    .join("");
 
   card.innerHTML = `
     <div class="loan-header">
@@ -255,6 +247,122 @@ function createLoanCard(expense, index) {
     </div>
   `;
   return card;
+}
+
+/* ── Loan Item Component ── */
+function createLoanItem(expense, payment, isSelected = false) {
+  const paid = !!payment.paid;
+  const note = (payment.notes || "").trim();
+  return `
+    <div class="payment-item${paid ? " paid" : ""}${isSelected ? " selected" : ""}" data-expense-id="${expense.id}" data-payment-id="${payment.id}">
+      <label class="payment-checkbox">
+        <input type="checkbox"${paid ? " checked" : ""} data-action="toggle-payment" data-expense-id="${expense.id}" data-payment-id="${payment.id}" aria-label="Mark payment as ${paid ? "unpaid" : "paid"}">
+      </label>
+      <div class="payment-main">
+        <span class="payment-date${paid ? " paid" : ""}">${formatDate(payment.date)}</span>
+        ${note ? `<span class="payment-note">${escapeHTML(note)}</span>` : ""}
+      </div>
+      <div class="payment-side">
+        <span class="payment-amount">${formatCurrency(payment.amount)}</span>
+        <span class="pay-move-icon${paid ? "" : " hidden"}" role="button" tabindex="${paid ? "0" : "-1"}" aria-label="Move to Paid History">−</span>
+        <div class="payment-actions">
+          <button type="button" class="payment-action edit" data-action="edit-payment" data-expense-id="${expense.id}" data-payment-id="${payment.id}" aria-label="Edit payment for ${escapeHTML(expense.provider)}">${ICONS.edit}</button>
+          <button type="button" class="payment-action delete" data-action="delete-payment" data-expense-id="${expense.id}" data-payment-id="${payment.id}" aria-label="Delete payment for ${escapeHTML(expense.provider)}">${ICONS.trash}</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ── Edit Loan Modal ── */
+function openEditLoanModal(expenseId, paymentId) {
+  const expense = state.expenses.find(e => e.id === expenseId);
+  const payment = expense?.payments.find(p => p.id === paymentId);
+  if (!expense || !payment) return;
+  editContext = { expenseId, paymentId };
+  $("#editLoanDate").value = payment.date || "";
+  $("#editLoanAmount").value = payment.amount ?? "";
+  $("#editLoanNotes").value = payment.notes || "";
+  openModal("editLoanModal");
+  $("#editLoanDate").focus();
+}
+
+function saveEditLoan() {
+  if (!editContext) return;
+  const date = $("#editLoanDate").value;
+  const amount = parseFloat($("#editLoanAmount").value);
+  const notes = $("#editLoanNotes").value.trim();
+  if (!date) { showToast("Select a date", "!"); $("#editLoanDate").focus(); return; }
+  if (!amount || isNaN(amount) || amount <= 0) {
+    showToast("Enter a valid amount", "!");
+    $("#editLoanAmount").focus();
+    return;
+  }
+  const expense = state.expenses.find(e => e.id === editContext.expenseId);
+  const payment = expense?.payments.find(p => p.id === editContext.paymentId);
+  if (!expense || !payment) { closeModal("editLoanModal"); editContext = null; return; }
+  payment.date = date;
+  payment.amount = amount;
+  if (notes) payment.notes = notes; else delete payment.notes;
+  expense.payments.sort((a, b) => new Date(a.date) - new Date(b.date));
+  saveData();
+  closeModal("editLoanModal");
+  editContext = null;
+  renderLoans();
+  updateOverallTotal();
+  updateSelectionBar();
+  showToast("Changes saved");
+}
+
+/* ── Delete Loan Confirm Modal ── */
+function openDeleteLoanModal(expenseId, paymentId) {
+  const expense = state.expenses.find(e => e.id === expenseId);
+  const payment = expense?.payments.find(p => p.id === paymentId);
+  if (!expense || !payment) return;
+  deleteContext = { expenseId, paymentId };
+  $("#deleteLoanDetails").textContent = `${expense.provider} · ${formatDate(payment.date)} · ${formatCurrency(payment.amount)}`;
+  openModal("deleteLoanModal");
+  $("#confirmDeleteLoanBtn").focus();
+}
+
+function confirmDeleteLoan() {
+  if (!deleteContext) return;
+  const { expenseId, paymentId } = deleteContext;
+  deleteContext = null;
+  const item = document.querySelector(`.payment-item[data-expense-id="${expenseId}"][data-payment-id="${paymentId}"]`);
+  closeModal("deleteLoanModal");
+  if (item) {
+    item.classList.add("removing");
+    setTimeout(() => deletePayment(expenseId, paymentId), 220);
+  } else {
+    deletePayment(expenseId, paymentId);
+  }
+}
+
+function deletePayment(expenseId, paymentId) {
+  const expense = state.expenses.find(e => e.id === expenseId);
+  if (!expense) return;
+  const pidx = expense.payments.findIndex(p => p.id === paymentId);
+  if (pidx === -1) return;
+  const paymentAmount = Number(expense.payments[pidx].amount);
+  expense.payments.splice(pidx, 1);
+  let loanRemoved = false;
+  if (expense.payments.length === 0) {
+    const eidx = state.expenses.findIndex(e => e.id === expenseId);
+    if (eidx > -1) {
+      state.deleteHistory.push({
+        id: crypto.randomUUID(),
+        provider: expense.provider,
+        originalTotal: paymentAmount,
+        actionDate: new Date().toISOString()
+      });
+      state.expenses.splice(eidx, 1);
+      loanRemoved = true;
+    }
+  }
+  saveData();
+  renderAll();
+  showToast(loanRemoved ? "Payment deleted · Loan moved to Delete History" : "Payment deleted");
 }
 
 function renderPaidHistory() {
@@ -413,31 +521,9 @@ function addPaymentToExpense(expenseId, date, amount) {
   expense.payments.push(payment);
   expense.payments.sort((a, b) => new Date(a.date) - new Date(b.date));
   saveData();
-  const btn = document.querySelector(`[data-action="remove-expense"][data-expense-id="${expenseId}"]`);
-  if (!btn) return;
-  const card = btn.closest(".loan-card");
-  if (!card) return;
-  const container = card.querySelector(".loan-payments");
-  const totalEl = card.querySelector(".loan-total");
-  const div = document.createElement("div");
-  div.className = "payment-item";
-  div.dataset.expenseId = expenseId;
-  div.dataset.paymentId = payment.id;
-  div.innerHTML = `
-    <label class="payment-checkbox">
-      <input type="checkbox" data-action="toggle-payment" data-expense-id="${expenseId}" data-payment-id="${payment.id}">
-    </label>
-    <div class="payment-info">
-      <div class="payment-date">${formatDate(date)}</div>
-    </div>
-    <div class="payment-amount">${formatCurrency(amount)}</div>
-    <span class="pay-move-icon hidden">−</span>
-  `;
-  container.appendChild(div);
-  totalEl.textContent = formatCurrency(getExpenseTotal(expense));
+  renderLoans();
   updateOverallTotal();
-  showToast("Payment added");
-  updateOverallTotal();
+  updateSelectionBar();
   showToast("Payment added");
 }
 
@@ -648,8 +734,17 @@ function bindEvents() {
     }
   });
 
-  /* Payment selection / pay move icon */
+  /* Payment selection / pay move icon / edit / delete */
   $("#loanContainer").addEventListener("click", event => {
+    const actionBtn = event.target.closest("[data-action='edit-payment'], [data-action='delete-payment']");
+    if (actionBtn) {
+      if (actionBtn.dataset.action === "edit-payment") {
+        openEditLoanModal(actionBtn.dataset.expenseId, actionBtn.dataset.paymentId);
+      } else {
+        openDeleteLoanModal(actionBtn.dataset.expenseId, actionBtn.dataset.paymentId);
+      }
+      return;
+    }
     const icon = event.target.closest(".pay-move-icon");
     if (icon) {
       const item = icon.closest(".payment-item");
@@ -665,6 +760,16 @@ function bindEvents() {
     if (!item) return;
     if (event.target.closest(".payment-checkbox")) return;
     toggleSelectPayment(item.dataset.expenseId, item.dataset.paymentId);
+  });
+
+  /* Keyboard support: move-to-paid-history icon */
+  $("#loanContainer").addEventListener("keydown", event => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const icon = event.target.closest(".pay-move-icon");
+    if (icon) {
+      event.preventDefault();
+      icon.click();
+    }
   });
 
   /* Active loan remove */
@@ -736,6 +841,15 @@ function bindEvents() {
     if (pendingAction) { pendingAction(); pendingAction = null; }
     closeModal("confirmModal");
   });
+
+  /* Edit loan modal */
+  $("#editLoanForm").addEventListener("submit", e => {
+    e.preventDefault();
+    saveEditLoan();
+  });
+
+  /* Delete loan modal */
+  $("#confirmDeleteLoanBtn").addEventListener("click", confirmDeleteLoan);
 
   /* Close modal buttons */
   $$("[data-close-modal]").forEach(b => {
